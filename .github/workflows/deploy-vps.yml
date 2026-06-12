@@ -1,0 +1,102 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Verify and deploy to VPS
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE_URL: https://api.smartsystema.online/api
+      SENTRY_RELEASE: ${{ github.sha }}
+      VITE_SENTRY_RELEASE: ${{ github.sha }}
+      SENTRY_ENVIRONMENT: production
+      VITE_SENTRY_ENVIRONMENT: production
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+      SENTRY_TRACES_SAMPLE_RATE: ${{ vars.SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
+      VITE_SENTRY_TRACES_SAMPLE_RATE: ${{ vars.VITE_SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.13.1 --activate
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Test
+        run: pnpm -r test
+
+      - name: Build deployable packages
+        run: |
+          pnpm --filter @automator/contracts build
+          pnpm --filter @automator/api build
+          pnpm --filter @automator/worker build
+          pnpm --filter @automator/desktop build
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_USER: ${{ secrets.VPS_USER || 'root' }}
+        run: |
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          test -n "$VPS_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/smartsistema_vps
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/smartsistema_vps ~/.ssh/known_hosts
+          {
+            echo "Host smartsistema-vps"
+            echo "  HostName $VPS_HOST"
+            echo "  User $VPS_USER"
+            echo "  IdentityFile ~/.ssh/smartsistema_vps"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking yes"
+          } >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Upload project to VPS
+        env:
+          VPS_DEPLOY_DIR: ${{ secrets.VPS_DEPLOY_DIR || '/opt/automator' }}
+        run: |
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            --exclude 'node_modules/' \
+            --exclude 'coverage/' \
+            --exclude '.playwright-mcp/' \
+            --exclude 'apps/desktop/src-tauri/target/' \
+            ./ smartsistema-vps:"$VPS_DEPLOY_DIR"/
+
+      - name: Restart services on VPS
+        env:
+          VPS_DEPLOY_DIR: ${{ secrets.VPS_DEPLOY_DIR || '/opt/automator' }}
+        run: |
+          ssh smartsistema-vps "AUTOMATOR_DEPLOY_DIR='$VPS_DEPLOY_DIR' bash '$VPS_DEPLOY_DIR/scripts/deploy-vps.sh'"

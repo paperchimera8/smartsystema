@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>СмартСистема sample UPD 4512</title>
+    <style>
+      @page {
+        margin: 18mm;
+        size: A4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: #111827;
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      .sheet {
+        min-height: 100vh;
+        border: 1px solid #d1d5db;
+        padding: 24px;
+      }
+
+      .header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 24px;
+        align-items: start;
+        border-bottom: 2px solid #111827;
+        padding-bottom: 16px;
+      }
+
+      h1 {
+        font-size: 26px;
+        letter-spacing: 0;
+      }
+
+      .doc-meta {
+        display: grid;
+        gap: 4px;
+        min-width: 230px;
+        border: 1px solid #9ca3af;
+        padding: 12px;
+      }
+
+      .party-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      .party {
+        min-height: 118px;
+        border: 1px solid #9ca3af;
+        padding: 12px;
+      }
+
+      .party h2 {
+        margin-bottom: 8px;
+        font-size: 14px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 4px 0;
+      }
+
+      table {
+        width: 100%;
+        margin-top: 22px;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border: 1px solid #9ca3af;
+        padding: 7px 6px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f3f4f6;
+        font-weight: 700;
+      }
+
+      .number {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .totals {
+        display: grid;
+        justify-content: end;
+        gap: 6px;
+        margin-top: 18px;
+      }
+
+      .total-line {
+        display: grid;
+        grid-template-columns: 180px 150px;
+        border: 1px solid #9ca3af;
+      }
+
+      .total-line span {
+        padding: 8px;
+      }
+
+      .total-line strong {
+        padding: 8px;
+        text-align: right;
+      }
+
+      .notice {
+        margin-top: 22px;
+        color: #4b5563;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="sheet">
+      <section class="header">
+        <div>
+          <h1>Универсальный передаточный документ</h1>
+          <p>Тестовый документ для локального MVP СмартСистема</p>
+        </div>
+        <div class="doc-meta">
+          <div class="row"><span>Тип</span><strong>УПД</strong></div>
+          <div class="row"><span>Номер</span><strong>4512</strong></div>
+          <div class="row"><span>Дата</span><strong>28.05.2026</strong></div>
+        </div>
+      </section>
+
+      <section class="party-grid">
+        <article class="party">
+          <h2>Поставщик</h2>
+          <div class="row"><span>Наименование</span><strong>ООО Ромашка</strong></div>
+          <div class="row"><span>ИНН</span><strong>7708123456</strong></div>
+          <div class="row"><span>КПП</span><strong>770801001</strong></div>
+          <div class="row"><span>Адрес</span><strong>г. Москва, ул. Лесная, 7</strong></div>
+        </article>
+        <article class="party">
+          <h2>Покупатель</h2>
+          <div class="row"><span>Наименование</span><strong>ООО Север Плюс</strong></div>
+          <div class="row"><span>ИНН</span><strong>7812345678</strong></div>
+          <div class="row"><span>КПП</span><strong>781201001</strong></div>
+          <div class="row"><span>Адрес</span><strong>г. Санкт-Петербург, пр. Невский, 18</strong></div>
+        </article>
+      </section>
+
+      <table>
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Наименование</th>
+            <th>Ед.</th>
+            <th>Кол-во</th>
+            <th>Цена</th>
+            <th>Сумма</th>
+            <th>НДС</th>
+            <th>Статус сопоставления</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="number">1</td>
+            <td>Бумага офисная А4, коробка</td>
+            <td>коробка</td>
+            <td class="number">4</td>
+            <td class="number">1 940,00 ₽</td>
+            <td class="number">7 760,00 ₽</td>
+            <td class="number">1 293,33 ₽</td>
+            <td>Единица отличается от 1С: штука, коэффициент не найден</td>
+          </tr>
+          <tr>
+            <td class="number">2</td>
+            <td>Картридж лазерный TK-1170</td>
+            <td>шт</td>
+            <td class="number">8</td>
+            <td class="number">6 420,00 ₽</td>
+            <td class="number">51 360,00 ₽</td>
+            <td class="number">8 560,00 ₽</td>
+            <td>Похожее совпадение по названию</td>
+          </tr>
+          <tr>
+            <td class="number">3</td>
+            <td>Доставка</td>
+            <td>усл</td>
+            <td class="number">1</td>
+            <td class="number">89 800,40 ₽</td>
+            <td class="number">89 800,40 ₽</td>
+            <td class="number">14 966,74 ₽</td>
+            <td>Проверено</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <section class="totals">
+        <div class="total-line"><span>Итого без НДС</span><strong>124 100,33 ₽</strong></div>
+        <div class="total-line"><span>НДС</span><strong>24 820,07 ₽</strong></div>
+        <div class="total-line"><span>Итого с НДС</span><strong>148 920,40 ₽</strong></div>
+      </section>
+
+      <p class="notice">
+        Этот файл не содержит персональных данных реального клиента и используется только для проверки локального
+        распознавания и маппинга полей в СмартСистема.
+      </p>
+    </main>
+  </body>
+</html>

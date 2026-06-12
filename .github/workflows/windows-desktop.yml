@@ -1,0 +1,147 @@
+name: Windows Desktop Agent Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Optional self-hosted backend API base URL to bake into the desktop app. Leave blank to enter it at runtime."
+        required: false
+        type: string
+      release_channel:
+        description: "Artifact channel label"
+        required: true
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - pilot
+          - stable
+  push:
+    tags:
+      - "desktop-v*"
+
+jobs:
+  build-windows-desktop:
+    name: Build Windows desktop agent
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DESKTOP_API_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.api_base_url || vars.AUTOMATOR_DESKTOP_API_BASE_URL || 'https://api.smartsystema.online/api' }}
+      DESKTOP_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'preview' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.13.1 --activate
+          pnpm --version
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
+          rustup default 1.88.0
+          rustc --version
+          cargo --version
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck workspace
+        run: pnpm typecheck
+
+      - name: Test workspace
+        run: pnpm test
+
+      - name: Build Windows installer
+        run: |
+          $env:PATH = "${env:ProgramFiles(x86)}\NSIS;$env:PATH"
+          $apiBaseUrl = "${env:DESKTOP_API_BASE_URL}".Trim()
+
+          if ([string]::IsNullOrWhiteSpace($apiBaseUrl)) {
+            Write-Host "DESKTOP_API_BASE_URL is empty; the desktop app will ask for a self-hosted backend URL at runtime."
+            $env:VITE_API_BASE_URL = ""
+            pnpm --filter @automator/desktop tauri build --ci --bundles nsis
+            exit 0
+          }
+
+          try {
+            $apiUri = [System.Uri]::new($apiBaseUrl)
+          } catch {
+            throw "DESKTOP_API_BASE_URL must be an absolute HTTP or HTTPS URL."
+          }
+
+          if (-not $apiUri.IsAbsoluteUri -or ($apiUri.Scheme -ne "http" -and $apiUri.Scheme -ne "https")) {
+            throw "DESKTOP_API_BASE_URL must use http or https."
+          }
+
+          if ($apiUri.Scheme -eq "http" -and $apiUri.Host -ne "localhost" -and $apiUri.Host -ne "127.0.0.1") {
+            throw "HTTP backend URLs are allowed only for localhost/127.0.0.1. Use HTTPS for server or LAN self-hosted deployments."
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($apiUri.UserInfo)) {
+            throw "DESKTOP_API_BASE_URL must not contain embedded credentials."
+          }
+
+          if ($apiUri.Query -match "(?i)(access_token|api[_-]?key|password|refresh_token|secret|token)=") {
+            throw "DESKTOP_API_BASE_URL must not contain secret-like query parameters."
+          }
+
+          $env:VITE_API_BASE_URL = $apiBaseUrl.TrimEnd("/")
+          pnpm --filter @automator/desktop tauri build --ci --bundles nsis
+
+      - name: Stage Windows artifacts
+        run: |
+          $artifactDir = "dist/windows-installer"
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+
+          if (Test-Path "apps/desktop/src-tauri/target/release/bundle/nsis") {
+            Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis" -Filter "*.exe" |
+              Copy-Item -Destination $artifactDir
+          }
+
+          Get-ChildItem "apps/desktop/src-tauri/target/release" -Filter "*.exe" -ErrorAction SilentlyContinue |
+            Copy-Item -Destination $artifactDir
+
+          $artifacts = @(Get-ChildItem $artifactDir -Filter "*.exe")
+          if ($artifacts.Count -eq 0) {
+            throw "No Windows installer artifacts were produced."
+          }
+
+          $artifacts | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: Write Windows artifact summary
+        run: |
+          $artifactDir = "dist/windows-installer"
+          Add-Content $env:GITHUB_STEP_SUMMARY "## Windows desktop artifact"
+          Add-Content $env:GITHUB_STEP_SUMMARY ""
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Channel: `${env:DESKTOP_RELEASE_CHANNEL}`"
+          if ([string]::IsNullOrWhiteSpace("${env:DESKTOP_API_BASE_URL}")) {
+            Add-Content $env:GITHUB_STEP_SUMMARY "- API base URL is entered by the user at runtime for self-hosted/local deployments."
+          } else {
+            Add-Content $env:GITHUB_STEP_SUMMARY "- API base URL is baked into the frontend at build time."
+          }
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Build output:"
+          Get-ChildItem $artifactDir -Filter "*.exe" | ForEach-Object {
+            $sizeMb = [Math]::Round($_.Length / 1MB, 2)
+            Add-Content $env:GITHUB_STEP_SUMMARY "  - `$($_.Name)` (${sizeMb} MB)"
+          }
+
+      - name: Upload Windows desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: automator-agent-windows-${{ env.DESKTOP_RELEASE_CHANNEL }}-${{ github.run_number }}
+          if-no-files-found: error
+          path: dist/windows-installer/*.exe
