@@ -1,4 +1,5 @@
 import react from "@vitejs/plugin-react";
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vitest/config";
 
 const windowsPreviewApiBaseUrl =
@@ -13,6 +14,13 @@ export default defineConfig(({ mode }) => ({
         }
       : {},
   clearScreen: false,
+  resolve: {
+    alias: {
+      "@automator/contracts": fileURLToPath(
+        new URL("../../packages/contracts/src/index.ts", import.meta.url)
+      )
+    }
+  },
   server: {
     strictPort: true,
     host: "127.0.0.1",
