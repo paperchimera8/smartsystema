@@ -16,6 +16,33 @@ corepack enable
 corepack prepare pnpm@10.13.1 --activate
 CI=true HUSKY=0 pnpm install --frozen-lockfile --prod --prefer-offline
 
+if [[ -n "${AUTOMATOR_RELEASE:-}" && -f .env.production ]]; then
+  python3 - "$AUTOMATOR_RELEASE" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+env_path = Path(".env.production")
+release = sys.argv[1]
+lines = []
+updated = False
+
+for raw in env_path.read_text().splitlines():
+    key, sep, _ = raw.partition("=")
+    if sep and key == "SENTRY_RELEASE":
+        lines.append(f"SENTRY_RELEASE={release}")
+        updated = True
+    else:
+        lines.append(raw)
+
+if not updated:
+    lines.append(f"SENTRY_RELEASE={release}")
+
+env_path.write_text("\n".join(lines) + "\n")
+os.chmod(env_path, 0o600)
+PY
+fi
+
 for service in $SERVICES; do
   systemctl restart "$service"
 done

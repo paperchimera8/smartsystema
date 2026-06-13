@@ -22,7 +22,10 @@ jobs:
       VITE_SENTRY_ENVIRONMENT: production
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
       VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-      SENTRY_TRACES_SAMPLE_RATE: ${{ vars.SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
+      SENTRY_TRACES_SAMPLE_RATE: ${{ vars.SENTRY_TRACES_SAMPLE_RATE || '1.0' }}
+      SENTRY_PROFILE_SESSION_SAMPLE_RATE: ${{ vars.SENTRY_PROFILE_SESSION_SAMPLE_RATE || '1.0' }}
+      SENTRY_PROFILE_LIFECYCLE: ${{ vars.SENTRY_PROFILE_LIFECYCLE || 'trace' }}
+      SENTRY_ENABLE_LOGS: ${{ vars.SENTRY_ENABLE_LOGS || 'true' }}
       VITE_SENTRY_TRACES_SAMPLE_RATE: ${{ vars.VITE_SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
 
     steps:
@@ -99,4 +102,4 @@ jobs:
         env:
           VPS_DEPLOY_DIR: ${{ secrets.VPS_DEPLOY_DIR || '/opt/automator' }}
         run: |
-          ssh smartsistema-vps "AUTOMATOR_DEPLOY_DIR='$VPS_DEPLOY_DIR' bash '$VPS_DEPLOY_DIR/scripts/deploy-vps.sh'"
+          ssh smartsistema-vps "AUTOMATOR_DEPLOY_DIR='$VPS_DEPLOY_DIR' AUTOMATOR_RELEASE='${GITHUB_SHA}' bash '$VPS_DEPLOY_DIR/scripts/deploy-vps.sh'"
