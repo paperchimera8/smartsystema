@@ -1,4 +1,5 @@
 import type { NodeOptions } from "@sentry/nestjs";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 
 export type SentryServiceName = "api" | "worker";
 
@@ -8,12 +9,18 @@ export type SentryRuntimeStatus = {
   environment: string;
   release: string | null;
   tracesSampleRate: number;
+  profileSessionSampleRate: number;
+  profileLifecycle: "manual" | "trace";
+  enableLogs: boolean;
   sendDefaultPii: false;
 };
 
 type SentryEnvironment = Record<string, string | undefined>;
 
-const DEFAULT_TRACES_SAMPLE_RATE = 0.1;
+const DEFAULT_TRACES_SAMPLE_RATE = 1.0;
+const DEFAULT_PROFILE_SESSION_SAMPLE_RATE = 1.0;
+const DEFAULT_PROFILE_LIFECYCLE = "trace";
+const DEFAULT_ENABLE_LOGS = true;
 
 export function buildNodeSentryOptions(
   service: SentryServiceName,
@@ -38,6 +45,14 @@ export function buildNodeSentryOptions(
         service
       }
     },
+    integrations: [nodeProfilingIntegration()],
+    enableLogs: parseBoolean(env.SENTRY_ENABLE_LOGS, DEFAULT_ENABLE_LOGS, "SENTRY_ENABLE_LOGS"),
+    profileLifecycle: parseProfileLifecycle(env.SENTRY_PROFILE_LIFECYCLE),
+    profileSessionSampleRate: parseSampleRate(
+      env.SENTRY_PROFILE_SESSION_SAMPLE_RATE,
+      DEFAULT_PROFILE_SESSION_SAMPLE_RATE,
+      "SENTRY_PROFILE_SESSION_SAMPLE_RATE"
+    ),
     sendDefaultPii: false,
     tracesSampleRate
   };
@@ -63,6 +78,13 @@ export function sentryRuntimeStatus(
       DEFAULT_TRACES_SAMPLE_RATE,
       "SENTRY_TRACES_SAMPLE_RATE"
     ),
+    profileSessionSampleRate: parseSampleRate(
+      env.SENTRY_PROFILE_SESSION_SAMPLE_RATE,
+      DEFAULT_PROFILE_SESSION_SAMPLE_RATE,
+      "SENTRY_PROFILE_SESSION_SAMPLE_RATE"
+    ),
+    profileLifecycle: parseProfileLifecycle(env.SENTRY_PROFILE_LIFECYCLE),
+    enableLogs: parseBoolean(env.SENTRY_ENABLE_LOGS, DEFAULT_ENABLE_LOGS, "SENTRY_ENABLE_LOGS"),
     sendDefaultPii: false
   };
 }
@@ -85,6 +107,38 @@ function parseSampleRate(rawValue: string | undefined, fallback: number, name: s
   }
 
   return rate;
+}
+
+function parseProfileLifecycle(value: string | undefined): "manual" | "trace" {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!normalized) {
+    return DEFAULT_PROFILE_LIFECYCLE;
+  }
+
+  if (normalized === "manual" || normalized === "trace") {
+    return normalized;
+  }
+
+  throw new Error("SENTRY_PROFILE_LIFECYCLE must be either manual or trace.");
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean, name: string): boolean {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+
+  throw new Error(`${name} must be a boolean value.`);
 }
 
 function readNonEmpty(value: string | undefined): string | undefined {

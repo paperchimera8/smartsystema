@@ -101,7 +101,10 @@ Server-side services use:
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=production
 SENTRY_RELEASE=<git-sha-or-release-tag>
-SENTRY_TRACES_SAMPLE_RATE=0.1
+SENTRY_TRACES_SAMPLE_RATE=1.0
+SENTRY_PROFILE_SESSION_SAMPLE_RATE=1.0
+SENTRY_PROFILE_LIFECYCLE=trace
+SENTRY_ENABLE_LOGS=true
 ```
 
 Desktop/browser code uses:
@@ -112,6 +115,10 @@ VITE_SENTRY_ENVIRONMENT=production
 VITE_SENTRY_RELEASE=<git-sha-or-release-tag>
 VITE_SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
+
+API and worker services install `@sentry/profiling-node` and initialize
+`nodeProfilingIntegration()` when `SENTRY_DSN` is present. Store DSNs in deployment
+secrets or root-only environment files, not in repository source files.
 
 Privacy defaults:
 
@@ -126,7 +133,9 @@ The API exposes a redacted operational endpoint:
 GET /api/observability
 ```
 
-This endpoint reports whether Sentry is configured, the active environment, release label, trace sampling rate, and PII safety flags. It must not expose secrets or customer document contents.
+This endpoint reports whether Sentry is configured, the active environment, release label,
+trace sampling rate, profiling sampling rate, log capture status, and PII safety flags. It
+must not expose secrets or customer document contents.
 
 ## Alerts and Incident Triggers
 

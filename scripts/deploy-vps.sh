@@ -14,7 +14,7 @@ fi
 
 corepack enable
 corepack prepare pnpm@10.13.1 --activate
-CI=true HUSKY=0 pnpm install --frozen-lockfile --prod --ignore-scripts --prefer-offline
+CI=true HUSKY=0 pnpm install --frozen-lockfile --prod --prefer-offline
 
 for service in $SERVICES; do
   systemctl restart "$service"

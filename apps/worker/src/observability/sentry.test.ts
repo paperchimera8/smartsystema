@@ -8,7 +8,10 @@ describe("worker Sentry observability", () => {
       dsnConfigured: false,
       environment: "production",
       release: null,
-      tracesSampleRate: 0.1,
+      tracesSampleRate: 1,
+      profileSessionSampleRate: 1,
+      profileLifecycle: "trace",
+      enableLogs: true,
       sendDefaultPii: false
     });
   });
@@ -19,7 +22,10 @@ describe("worker Sentry observability", () => {
         SENTRY_DSN: "https://public@example.invalid/1",
         SENTRY_ENVIRONMENT: "prod",
         SENTRY_RELEASE: "release-1",
-        SENTRY_TRACES_SAMPLE_RATE: "0.3"
+        SENTRY_TRACES_SAMPLE_RATE: "0.3",
+        SENTRY_PROFILE_SESSION_SAMPLE_RATE: "0.4",
+        SENTRY_PROFILE_LIFECYCLE: "manual",
+        SENTRY_ENABLE_LOGS: "false"
       })
     ).toEqual({
       enabled: true,
@@ -27,6 +33,9 @@ describe("worker Sentry observability", () => {
       environment: "prod",
       release: "release-1",
       tracesSampleRate: 0.3,
+      profileSessionSampleRate: 0.4,
+      profileLifecycle: "manual",
+      enableLogs: false,
       sendDefaultPii: false
     });
   });
