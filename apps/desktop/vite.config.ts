@@ -3,7 +3,7 @@ import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vitest/config";
 
 const windowsPreviewApiBaseUrl =
-  process.env.VITE_API_BASE_URL?.trim() || "";
+  process.env.VITE_API_BASE_URL?.trim() || "https://api.smartsystema.online/api";
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],

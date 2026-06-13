@@ -190,6 +190,20 @@ describe("App module wiring", () => {
     );
   });
 
+  it("uses the SmartSistema cloud API when the build has no endpoint override", async () => {
+    const fetchMock = mockAuthenticatedApi("https://api.smartsystema.online/api");
+    vi.stubEnv("VITE_API_BASE_URL", "");
+
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "Войти через браузер" }));
+    await screen.findByRole("heading", { name: "Документы" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.smartsystema.online/api/auth/native/start",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
   it("uses a local self-hosted API endpoint from configuration", async () => {
     const fetchMock = mockAuthenticatedApi("http://127.0.0.1:8080/api");
 
@@ -214,7 +228,7 @@ describe("App module wiring", () => {
     render(<App />);
     await userEvent.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
 
-    expect(await screen.findByText(/Не удалось подключиться к backend API/)).toBeTruthy();
+    expect(await screen.findByText(/Не удалось подключиться к облачному backend API/)).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Документы" })).toBeNull();
   });
 

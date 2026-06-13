@@ -103,7 +103,7 @@ fn focus_main_window(app: tauri::AppHandle) -> Result<(), WindowFocusError> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let api_base_url = std::env::var("AUTOMATOR_API_BASE_URL")
-        .unwrap_or_else(|_| "http://localhost:8080/api".to_string());
+        .unwrap_or_else(|_| "https://api.smartsystema.online/api".to_string());
     let agent_id =
         std::env::var("AUTOMATOR_AGENT_ID").unwrap_or_else(|_| "desktop-agent-local".to_string());
     let tenant_id =

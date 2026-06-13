@@ -17,6 +17,7 @@ import {
   isTauriRuntime,
   normalizeApiBaseUrl,
   pollNativeBrowserAuth,
+  SMARTSISTEMA_CLOUD_API_BASE_URL,
   routeDocumentExceptionWorkflow,
   startNativeBrowserAuth,
   fetchNativeAuthMe
@@ -28,7 +29,7 @@ describe("module workflow helpers", () => {
     vi.unstubAllEnvs();
   });
 
-  it("normalizes safe API base URLs and treats empty config as demo mode", () => {
+  it("normalizes safe API base URLs and uses the cloud API when config is empty", () => {
     expect(normalizeApiBaseUrl(undefined)).toBeNull();
     expect(normalizeApiBaseUrl("  ")).toBeNull();
     expect(normalizeApiBaseUrl("https://api.example.com")).toBe("https://api.example.com/api");
@@ -38,7 +39,7 @@ describe("module workflow helpers", () => {
       "https://api.example.com/api/documents/upload"
     );
     vi.stubEnv("VITE_API_BASE_URL", "");
-    expect(configuredApiBaseUrl()).toBeNull();
+    expect(configuredApiBaseUrl()).toBe(SMARTSISTEMA_CLOUD_API_BASE_URL);
   });
 
   it("rejects unsafe API base URLs", () => {

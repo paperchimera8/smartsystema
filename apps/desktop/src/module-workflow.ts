@@ -31,6 +31,8 @@ export type WorkflowResult<T> = {
 
 type Fetcher = typeof fetch;
 
+export const SMARTSISTEMA_CLOUD_API_BASE_URL = "https://api.smartsystema.online/api";
+
 export class BackendRequestError extends Error {
   readonly code: string | undefined;
   readonly path: string;
@@ -80,7 +82,7 @@ export function normalizeApiBaseUrl(rawValue: string | undefined): string | null
 }
 
 export function configuredApiBaseUrl(): string | null {
-  return normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+  return normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL) ?? SMARTSISTEMA_CLOUD_API_BASE_URL;
 }
 
 export function apiEndpointUrl(

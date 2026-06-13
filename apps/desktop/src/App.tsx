@@ -1109,7 +1109,7 @@ export function App() {
 
     if (apiBase === null) {
       setAuthState("error");
-      setAuthMessage("Укажите адрес локального или серверного backend API.");
+      setAuthMessage("Не удалось определить адрес облачного backend API.");
       return;
     }
 
@@ -2372,7 +2372,7 @@ function actionErrorMessage(error: unknown) {
 
   if (error instanceof Error) {
     if (error instanceof TypeError && /fetch/i.test(error.message)) {
-      return "Не удалось подключиться к backend API. Проверьте адрес, что backend запущен, и что /api/health открывается из этого компьютера.";
+      return "Не удалось подключиться к облачному backend API. Проверьте интернет-соединение и доступность https://api.smartsystema.online/api/health.";
     }
 
     return error.message;
