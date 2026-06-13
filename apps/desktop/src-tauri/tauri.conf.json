@@ -1,8 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "СмартСистема Agent",
+  "productName": "SmartSistema",
   "version": "0.1.0",
-  "identifier": "com.automator.agent",
+  "identifier": "online.smartsystema.agent",
+  "mainBinaryName": "SmartSistema",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
@@ -13,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "СмартСистема Agent",
+        "title": "SmartSistema",
         "width": 1080,
         "height": 760,
         "minWidth": 800,
@@ -27,7 +28,24 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "SmartSistema",
+    "shortDescription": "AI document recognition agent for 1C draft creation.",
+    "longDescription": "SmartSistema recognizes primary accounting documents and safely prepares reviewable drafts for 1C.",
+    "category": "Business",
     "targets": "all",
+    "windows": {
+      "allowDowngrades": false,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "languages": ["Russian", "English"],
+        "displayLanguageSelector": true,
+        "startMenuFolder": "SmartSistema"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

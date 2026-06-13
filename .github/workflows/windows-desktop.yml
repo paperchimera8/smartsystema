@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       api_base_url:
-        description: "Optional self-hosted backend API base URL to bake into the desktop app. Leave blank to enter it at runtime."
+        description: "Optional backend API base URL to bake into the desktop app. Leave blank to use the repository/cloud default."
         required: false
         type: string
       release_channel:
@@ -16,6 +16,11 @@ on:
           - preview
           - pilot
           - stable
+      allow_unsigned_preview:
+        description: "Allow an unsigned installer for internal preview/pilot testing. Stable releases still require signing."
+        required: true
+        default: true
+        type: boolean
   push:
     tags:
       - "desktop-v*"
@@ -30,6 +35,9 @@ jobs:
     env:
       DESKTOP_API_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.api_base_url || vars.AUTOMATOR_DESKTOP_API_BASE_URL || 'https://api.smartsystema.online/api' }}
       DESKTOP_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'preview' }}
+      ALLOW_UNSIGNED_PREVIEW: ${{ github.event_name != 'workflow_dispatch' || inputs.allow_unsigned_preview }}
+      WINDOWS_SIGN_COMMAND_CONFIGURED: ${{ secrets.TAURI_WINDOWS_SIGN_COMMAND != '' }}
+      WINDOWS_CERTIFICATE_THUMBPRINT_CONFIGURED: ${{ secrets.TAURI_WINDOWS_CERTIFICATE_THUMBPRINT != '' }}
 
     steps:
       - name: Checkout repository
@@ -59,6 +67,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate Windows release policy
+        run: |
+          $hasSigning = "${env:WINDOWS_SIGN_COMMAND_CONFIGURED}" -eq "true" -or "${env:WINDOWS_CERTIFICATE_THUMBPRINT_CONFIGURED}" -eq "true"
+
+          if ("${env:DESKTOP_RELEASE_CHANNEL}" -eq "stable" -and -not $hasSigning) {
+            throw "Stable Windows releases require Authenticode signing. Configure TAURI_WINDOWS_SIGN_COMMAND or TAURI_WINDOWS_CERTIFICATE_THUMBPRINT."
+          }
+
+          if ("${env:DESKTOP_RELEASE_CHANNEL}" -ne "stable" -and "${env:ALLOW_UNSIGNED_PREVIEW}" -ne "true" -and -not $hasSigning) {
+            throw "Unsigned preview/pilot installers are disabled for this run. Configure signing or enable allow_unsigned_preview."
+          }
+
+          if ($hasSigning) {
+            Write-Host "Windows signing is configured for this run."
+          } else {
+            Write-Host "No Windows signing configured. This run can only produce an internal unsigned preview/pilot installer."
+          }
+
       - name: Typecheck workspace
         run: pnpm typecheck
 
@@ -66,14 +92,42 @@ jobs:
         run: pnpm test
 
       - name: Build Windows installer
+        env:
+          TAURI_WINDOWS_SIGN_COMMAND: ${{ secrets.TAURI_WINDOWS_SIGN_COMMAND }}
+          TAURI_WINDOWS_CERTIFICATE_THUMBPRINT: ${{ secrets.TAURI_WINDOWS_CERTIFICATE_THUMBPRINT }}
         run: |
           $env:PATH = "${env:ProgramFiles(x86)}\NSIS;$env:PATH"
           $apiBaseUrl = "${env:DESKTOP_API_BASE_URL}".Trim()
+          $tauriConfigArgs = @()
+          $signCommand = "${env:TAURI_WINDOWS_SIGN_COMMAND}".Trim()
+          $certificateThumbprint = "${env:TAURI_WINDOWS_CERTIFICATE_THUMBPRINT}".Trim()
+
+          if (-not [string]::IsNullOrWhiteSpace($signCommand) -or -not [string]::IsNullOrWhiteSpace($certificateThumbprint)) {
+            $windowsSigningConfig = @{}
+
+            if (-not [string]::IsNullOrWhiteSpace($signCommand)) {
+              $windowsSigningConfig.signCommand = $signCommand
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($certificateThumbprint)) {
+              $windowsSigningConfig.certificateThumbprint = $certificateThumbprint
+            }
+
+            $signingConfig = @{
+              bundle = @{
+                windows = $windowsSigningConfig
+              }
+            }
+
+            $signingConfigPath = "apps/desktop/src-tauri/tauri.windows-signing.generated.json"
+            $signingConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $signingConfigPath -Encoding utf8NoBOM
+            $tauriConfigArgs = @("--config", $signingConfigPath)
+          }
 
           if ([string]::IsNullOrWhiteSpace($apiBaseUrl)) {
             Write-Host "DESKTOP_API_BASE_URL is empty; the desktop app will ask for a self-hosted backend URL at runtime."
             $env:VITE_API_BASE_URL = ""
-            pnpm --filter @automator/desktop tauri build --ci --bundles nsis
+            pnpm --filter @automator/desktop tauri build --ci --bundles nsis @tauriConfigArgs
             exit 0
           }
 
@@ -100,27 +154,52 @@ jobs:
           }
 
           $env:VITE_API_BASE_URL = $apiBaseUrl.TrimEnd("/")
-          pnpm --filter @automator/desktop tauri build --ci --bundles nsis
+          pnpm --filter @automator/desktop tauri build --ci --bundles nsis @tauriConfigArgs
 
       - name: Stage Windows artifacts
         run: |
           $artifactDir = "dist/windows-installer"
           New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+          $config = Get-Content "apps/desktop/src-tauri/tauri.conf.json" | ConvertFrom-Json
+          $version = $config.version
+          $installerName = "SmartSistema-Setup-$version-${env:DESKTOP_RELEASE_CHANNEL}-${env:GITHUB_RUN_NUMBER}.exe"
+          $expectedBinary = "apps/desktop/src-tauri/target/release/SmartSistema.exe"
 
-          if (Test-Path "apps/desktop/src-tauri/target/release/bundle/nsis") {
-            Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis" -Filter "*.exe" |
-              Copy-Item -Destination $artifactDir
+          if (-not (Test-Path $expectedBinary)) {
+            throw "Expected application binary was not produced at $expectedBinary. The Windows app binary must be SmartSistema.exe."
           }
 
-          Get-ChildItem "apps/desktop/src-tauri/target/release" -Filter "*.exe" -ErrorAction SilentlyContinue |
-            Copy-Item -Destination $artifactDir
+          $legacyBinary = "apps/desktop/src-tauri/target/release/Automator-Agent.exe"
+          if (Test-Path $legacyBinary) {
+            throw "Legacy Automator-Agent.exe was produced. Check Tauri productName/mainBinaryName before publishing."
+          }
+
+          $nsisDir = "apps/desktop/src-tauri/target/release/bundle/nsis"
+          if (-not (Test-Path $nsisDir)) {
+            throw "NSIS bundle directory was not produced."
+          }
+
+          $installer = Get-ChildItem $nsisDir -Filter "*.exe" |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+
+          if ($null -eq $installer) {
+            throw "No NSIS installer artifact was produced."
+          }
+
+          Copy-Item -Path $installer.FullName -Destination (Join-Path $artifactDir $installerName)
 
           $artifacts = @(Get-ChildItem $artifactDir -Filter "*.exe")
-          if ($artifacts.Count -eq 0) {
-            throw "No Windows installer artifacts were produced."
+          if ($artifacts.Count -ne 1) {
+            throw "Exactly one Windows installer artifact must be staged. Found $($artifacts.Count)."
+          }
+
+          if ($artifacts[0].Name -notlike "SmartSistema-Setup-*.exe") {
+            throw "Installer artifact must be named SmartSistema-Setup-*.exe."
           }
 
           $artifacts | Select-Object Name, Length | Format-Table -AutoSize
+          Get-FileHash $artifacts[0].FullName -Algorithm SHA256 | Format-List
 
       - name: Write Windows artifact summary
         run: |
@@ -128,6 +207,13 @@ jobs:
           Add-Content $env:GITHUB_STEP_SUMMARY "## Windows desktop artifact"
           Add-Content $env:GITHUB_STEP_SUMMARY ""
           Add-Content $env:GITHUB_STEP_SUMMARY "- Channel: `${env:DESKTOP_RELEASE_CHANNEL}`"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Application binary: `SmartSistema.exe`"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Installer format: NSIS `.exe`"
+          if ("${env:WINDOWS_SIGN_COMMAND_CONFIGURED}" -eq "true" -or "${env:WINDOWS_CERTIFICATE_THUMBPRINT_CONFIGURED}" -eq "true") {
+            Add-Content $env:GITHUB_STEP_SUMMARY "- Authenticode signing: configured"
+          } else {
+            Add-Content $env:GITHUB_STEP_SUMMARY "- Authenticode signing: not configured; internal preview/pilot use only"
+          }
           if ([string]::IsNullOrWhiteSpace("${env:DESKTOP_API_BASE_URL}")) {
             Add-Content $env:GITHUB_STEP_SUMMARY "- API base URL is entered by the user at runtime for self-hosted/local deployments."
           } else {
@@ -136,12 +222,13 @@ jobs:
           Add-Content $env:GITHUB_STEP_SUMMARY "- Build output:"
           Get-ChildItem $artifactDir -Filter "*.exe" | ForEach-Object {
             $sizeMb = [Math]::Round($_.Length / 1MB, 2)
-            Add-Content $env:GITHUB_STEP_SUMMARY "  - `$($_.Name)` (${sizeMb} MB)"
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            Add-Content $env:GITHUB_STEP_SUMMARY "  - `$($_.Name)` (${sizeMb} MB, SHA-256 `$hash`)"
           }
 
       - name: Upload Windows desktop artifact
         uses: actions/upload-artifact@v4
         with:
-          name: automator-agent-windows-${{ env.DESKTOP_RELEASE_CHANNEL }}-${{ github.run_number }}
+          name: smartsistema-windows-installer-${{ env.DESKTOP_RELEASE_CHANNEL }}-${{ github.run_number }}
           if-no-files-found: error
           path: dist/windows-installer/*.exe

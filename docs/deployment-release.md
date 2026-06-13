@@ -37,12 +37,22 @@ matrix:
 
 ## Windows Desktop Artifact
 
-The repository provides `.github/workflows/windows-desktop.yml` for building a downloadable Windows desktop-agent artifact on `windows-latest`.
+The repository provides `.github/workflows/windows-desktop.yml` for building the Windows desktop-agent installer on `windows-latest`.
 
 Use cases:
 
 - Manual preview build: run **Windows Desktop Agent Build** from GitHub Actions with `workflow_dispatch`.
 - Tagged build: push a tag matching `desktop-v*`.
+
+Distribution rules:
+
+- The public Windows artifact must be an installer, not a portable ZIP.
+- The default installer format is the NSIS `.exe` installer.
+- The installed application binary must be named `SmartSistema.exe`.
+- The installer artifact uploaded by GitHub Actions must be named `SmartSistema-Setup-<version>-<channel>-<run>.exe`.
+- The Tauri product name, window title, bundle publisher, and Start Menu folder must use `SmartSistema`.
+- Raw release executables from `target/release` must not be uploaded as public distribution artifacts.
+- Unsigned preview or pilot installers are for internal testing only and must not be linked from the public landing page.
 
 The workflow:
 
@@ -50,15 +60,18 @@ The workflow:
 - runs workspace typecheck and tests;
 - validates the optional desktop API base URL used by the packaged frontend;
 - builds the Tauri desktop agent with the NSIS bundle target;
-- stages generated `.exe` files under `dist/windows-installer`;
-- uploads the generated Windows `.exe` installer and release executable as a GitHub Actions artifact.
+- verifies that the Windows application binary is `SmartSistema.exe`;
+- stages exactly one NSIS installer under `dist/windows-installer`;
+- uploads the generated Windows `.exe` installer as a GitHub Actions artifact;
+- records the installer SHA-256 hash in the workflow summary.
 
 Manual preview build inputs:
 
-- `api_base_url`: optional self-hosted backend API base URL to bake into the desktop frontend, for example `https://office.example.com/api` or `http://127.0.0.1:8080/api`. The value must be an absolute `http` or `https` URL without embedded credentials or secret-like query parameters. HTTP is allowed only for `localhost` or `127.0.0.1`; server and LAN deployments must use HTTPS.
+- `api_base_url`: optional backend API base URL to bake into the desktop frontend, for example `https://api.smartsystema.online/api`, `https://office.example.com/api`, or `http://127.0.0.1:8080/api`. The value must be an absolute `http` or `https` URL without embedded credentials or secret-like query parameters. HTTP is allowed only for `localhost` or `127.0.0.1`; server and LAN deployments must use HTTPS.
 - `release_channel`: artifact label, one of `preview`, `pilot`, or `stable`.
+- `allow_unsigned_preview`: allows an unsigned preview or pilot installer for internal testing. Stable releases ignore this bypass and require signing.
 
-If `api_base_url` is omitted, the workflow falls back to the repository variable `AUTOMATOR_DESKTOP_API_BASE_URL`. If both are empty, the desktop app asks the user for a local or self-hosted backend URL on the sign-in screen. There is no baked cloud backend default.
+If `api_base_url` is omitted, the workflow falls back to the repository variable `AUTOMATOR_DESKTOP_API_BASE_URL`, then to the SmartSistema cloud API at `https://api.smartsystema.online/api`.
 
 The backend that serves native browser authentication must be configured with:
 
@@ -70,12 +83,23 @@ The desktop agent still polls the backend for native auth completion, so the cus
 
 The preview artifact is unsigned until the Windows signing pipeline is configured. Unsigned preview builds are acceptable for internal testing only and can trigger Windows SmartScreen warnings.
 
+Stable Windows releases are blocked by the workflow unless signing is configured through one of these CI secrets:
+
+```text
+TAURI_WINDOWS_SIGN_COMMAND=<custom signing command for the installer/binary path>
+TAURI_WINDOWS_CERTIFICATE_THUMBPRINT=<certificate thumbprint available on the Windows runner>
+```
+
+`TAURI_WINDOWS_SIGN_COMMAND` is the preferred integration point for cloud or HSM-backed signing. It must not contain secret material directly; it should call a signing tool that retrieves credentials from the CI secret store or the signing provider. The command must be reviewed before enabling stable releases.
+
 ## Windows Code Signing (SignTool)
 
 - All Windows executables, installers, and DLLs must be signed using Microsoft **SignTool** or an approved cloud-based signing key vault.
 - Every signature must include a verifiable cryptographic timestamp.
 - Signing certificates and private keys must never reside in the code repository. Access them securely via CI secrets or HSM integrations.
 - Any modifications to the Windows code-signing pipeline are considered highly sensitive and require explicit security review.
+- Windows SmartScreen reputation cannot be fully solved by packaging alone. A normal installer reduces distribution friction, but public releases still require Authenticode signing with a trusted publisher certificate and reputation built over time. EV certificates or Microsoft Trusted Signing can reduce early warnings compared with unsigned builds.
+- Do not publish unsigned ZIP, portable EXE, or unsigned installer links on `smartsystema.online`.
 
 ## macOS Code Signing & Notarization
 
