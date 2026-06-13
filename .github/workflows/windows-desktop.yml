@@ -206,9 +206,9 @@ jobs:
           $artifactDir = "dist/windows-installer"
           Add-Content $env:GITHUB_STEP_SUMMARY "## Windows desktop artifact"
           Add-Content $env:GITHUB_STEP_SUMMARY ""
-          Add-Content $env:GITHUB_STEP_SUMMARY "- Channel: `${env:DESKTOP_RELEASE_CHANNEL}`"
-          Add-Content $env:GITHUB_STEP_SUMMARY "- Application binary: `SmartSistema.exe`"
-          Add-Content $env:GITHUB_STEP_SUMMARY "- Installer format: NSIS `.exe`"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Channel: ${env:DESKTOP_RELEASE_CHANNEL}"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Application binary: SmartSistema.exe"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Installer format: NSIS .exe"
           if ("${env:WINDOWS_SIGN_COMMAND_CONFIGURED}" -eq "true" -or "${env:WINDOWS_CERTIFICATE_THUMBPRINT_CONFIGURED}" -eq "true") {
             Add-Content $env:GITHUB_STEP_SUMMARY "- Authenticode signing: configured"
           } else {
@@ -223,7 +223,8 @@ jobs:
           Get-ChildItem $artifactDir -Filter "*.exe" | ForEach-Object {
             $sizeMb = [Math]::Round($_.Length / 1MB, 2)
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-            Add-Content $env:GITHUB_STEP_SUMMARY "  - `$($_.Name)` (${sizeMb} MB, SHA-256 `$hash`)"
+            $summaryLine = "  - {0} ({1} MB, SHA-256 {2})" -f $_.Name, $sizeMb, $hash
+            Add-Content $env:GITHUB_STEP_SUMMARY $summaryLine
           }
 
       - name: Upload Windows desktop artifact
